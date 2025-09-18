@@ -53,10 +53,8 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
     if (EFI_ERROR(st)) goto halt_silent;
 
     // --- カーネルのエントリにジャンプ ---
-    // UEFI/MS x64 calling convention で呼ぶ（EFIAPI = ms_abi）
-    typedef __attribute__((noreturn)) VOID (EFIAPI *kernel_entry_t)(const BOOT_INFO *bi);
+    typedef void (*kernel_entry_t)(const BOOT_INFO *bi);
     kernel_entry_t kentry = (kernel_entry_t)(uintptr_t)entry;
-
     kentry(&bi);
 
 halt_silent:

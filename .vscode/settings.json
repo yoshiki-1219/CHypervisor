@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "bits.h": "c",
+        "log.h": "c",
+        "stdint.h": "c",
+        "bin_alloc.h": "c"
+    }
+}
