@@ -1,4 +1,5 @@
 #include "gdt.h"
+#include "arch/x86/arch_x86_low.h"
 
 /* ===== GDT の内部表現 =====
  * 通常ディスクリプタ：64bit（u64）
@@ -77,6 +78,19 @@ static void set_tss_desc(uint16_t index, uint64_t base, uint32_t limit)
 
     gdt[index]     = low;
     gdt[index + 1] = high;
+}
+
+// 例: 64bit TSS の base を取るヘルパを用意
+uint64_t tss_base_from_gdt(uint16_t tr, struct desc_ptr gdtr) {
+    const uint64_t gdt = gdtr.base;
+    const uint64_t idx = (tr & ~0x7) /*RPL/TI除去*/;
+    const uint64_t *desc = (uint64_t*)(gdt + idx);
+    uint64_t low  = desc[0];
+    uint64_t high = desc[1];
+    uint64_t base = ((low  >> 16) & 0xFFFFFF)
+                  | ((high & 0xFF) << 24)
+                  | (high & 0xFFFFFFFF00000000ULL);
+    return base;
 }
 
 /* ===== セグメントレジスタ更新 ===== */

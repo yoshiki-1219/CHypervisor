@@ -29,7 +29,7 @@ typedef struct __attribute__((packed)) {
 /* 外部公開 API */
 void idt_init(void);                       /* IDT 配列を LIDT する */
 void idt_set_gate(int vec, void (*isr)(void),
-                  uint16_t cs_selector,    /* 例: sel_gdt(KERNEL_CS_IDX, 0) (前回のGDT実装) */
+                  uint16_t cs_selector,    /* 例: sel_gdt(KERNEL_CS_IDX, 0) (GDT実装) */
                   uint8_t gate_type,       /* 0xE: interrupt gate を推奨 */
                   uint8_t dpl);            /* 0 (Ring0) 推奨 */
 

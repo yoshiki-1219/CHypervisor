@@ -6,14 +6,6 @@
 extern "C" {
 #endif
 
-/* CR3 読み書き */
-static inline uint64_t x86_read_cr3(void) {
-    uint64_t v; __asm__ __volatile__("mov %%cr3,%0" : "=r"(v)); return v;
-}
-static inline void x86_write_cr3(uint64_t v) {
-    __asm__ __volatile__("mov %0,%%cr3" :: "r"(v) : "memory");
-}
-
 /* ページテーブルエントリのビット定義 */
 enum {
     PTE_P   = 1ULL << 0,   /* present */

@@ -26,7 +26,7 @@ static inline uint16_t bits_tobit_u16(unsigned n){ BITS_ASSERT(n < 16); return (
 static inline uint32_t bits_tobit_u32(unsigned n){ BITS_ASSERT(n < 32); return (uint32_t)(UINT32_C(1) << (n & 31)); }
 static inline uint64_t bits_tobit_u64(unsigned n){ BITS_ASSERT(n < 64); return (uint64_t)(UINT64_C(1) << (n & 63)); }
 
-/* 汎用マクロ：ターゲット型を明示（Zig の tobit(T, n) 相当） */
+/* 汎用マクロ：ターゲット型を明示*/
 #define BITS_TOBIT(T, n) \
     ((T)(( (sizeof(T)==1)? (UINT8_C(1)  << ((n)&7)) : \
           (sizeof(T)==2)? (UINT16_C(1) << ((n)&15)): \
@@ -40,7 +40,6 @@ static inline uint64_t bits_tobit_u64(unsigned n){ BITS_ASSERT(n < 64); return (
 #define BITS_ISSET(val, n)  ( (( (uintmax_t)(val) >> (unsigned)(n) ) & UINTMAX_C(1)) != 0 )
 
 /* ========== 3) 2つの整数を連結する concat ========== */
-/*  Zig の concat(T, a, b) に対応。よく使うパターンを明示的に提供。 */
 static inline uint16_t bits_concat_u8_u8(uint8_t hi, uint8_t lo) {
     return (uint16_t)((uint16_t)hi << 8) | (uint16_t)lo;
 }

@@ -11,6 +11,10 @@
 #include "page_alloc.h"
 #include "memmap.h"
 #include "panic.h"
+#include "arch/x86/vmm/vmx.h"
+#include "arch/x86/vmm/vmcs.h"
+#include "arch/x86/vmm/vmx_log.h"
+#include "arch/x86/vmm/vcpu.h"
 
 /* リンカスクリプトで定義するスタック境界シンボル
    - 配列ではなく「オブジェクトの先頭アドレス」という意味で uint8_t を使う
@@ -99,6 +103,22 @@ static void kernelMain(BOOT_INFO *bi)
 
     pic_init();
     KLOG_INFO("main", "Initialized PIC.");
+
+    if (vmx_init_and_enter() != 0) {
+        KLOG_ERROR("kmain", "VMX root entry failed");
+        panic("VMXON failed");
+    }
+
+    void* vmcs_va = NULL;
+    if (vmcs_alloc_and_load(&vmcs_va) != 0) {
+        KLOG_ERROR("main", "vmcs_alloc_and_load failed");
+        panic("VMCS load failed");
+    }
+
+    KLOG_INFO("main", "Starting the virtual machine...");
+    if (vcpu_build_vmcs_and_launch() != 0) {
+        KLOG_ERROR("main", "VMLAUNCH failed");
+    }
 
     for (;;) __asm__ __volatile__("hlt");
 }

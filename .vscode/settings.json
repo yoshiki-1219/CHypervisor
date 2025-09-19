@@ -3,6 +3,15 @@
         "bits.h": "c",
         "log.h": "c",
         "stdint.h": "c",
-        "bin_alloc.h": "c"
+        "bin_alloc.h": "c",
+        "memmap.h": "c",
+        "string.h": "c",
+        "vmx.h": "c",
+        "vmcs.h": "c",
+        "vmx_log.h": "c",
+        "panic.h": "c",
+        "stddef.h": "c",
+        "arch_x86_low.h": "c",
+        "gdt.h": "c"
     }
 }

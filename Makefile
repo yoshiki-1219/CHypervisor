@@ -28,6 +28,7 @@ UEFI_ARCH_DIR     := $(UEFI_SRC_DIR)/arch/$(ARCH)
 
 KERNEL_DIR        := kernel
 KERNEL_ARCH_DIR   := $(KERNEL_DIR)/arch/$(ARCH)
+KERNEL_VMM_DIR    := $(KERNEL_DIR)/arch/$(ARCH)/vmm
 
 BUILD_DIR         := build
 UEFI_BUILD        := $(BUILD_DIR)/uefi
@@ -35,6 +36,7 @@ UEFI_BUILD_ARCH   := $(UEFI_BUILD)/arch/$(ARCH)
 
 KERNEL_BUILD      := $(BUILD_DIR)/kernel
 KERNEL_BUILD_ARCH := $(KERNEL_BUILD)/arch/$(ARCH)
+KERNEL_BUILD_VMM  := $(KERNEL_BUILD)/arch/$(ARCH)/vmm
 
 IMG_DIR           := img
 EFI_DIR           := $(IMG_DIR)/EFI/BOOT
@@ -63,16 +65,21 @@ UEFI_OBJS        := $(UEFI_COMMON_OBJS) $(UEFI_ARCH_OBJS)
 # ---- Sources / Objects (Kernel) ----
 KERNEL_COMMON_CSRC := $(wildcard $(KERNEL_DIR)/*.c)
 KERNEL_ARCH_CSRC   := $(wildcard $(KERNEL_ARCH_DIR)/*.c)
+KERNEL_VMM_CSRC    := $(wildcard $(KERNEL_VMM_DIR)/*.c)
 KERNEL_ASMS_COMMON := $(wildcard $(KERNEL_DIR)/*.S)
 KERNEL_ASMS_ARCH   := $(wildcard $(KERNEL_ARCH_DIR)/*.S)
+KERNEL_ASMS_VMM    := $(wildcard $(KERNEL_VMM_DIR)/*.S)
 
 KERNEL_COMMON_OBJS := $(patsubst $(KERNEL_DIR)/%.c,$(KERNEL_BUILD)/%.o,$(KERNEL_COMMON_CSRC)) \
-                      $(patsubst $(KERNEL_DIR)/%.S,$(KERNEL_BUILD)/%.o,$(KERNEL_ASMS_COMMON))
+                      $(patsubst $(KERNEL_DIR)/%.S,$(KERNEL_BUILD)/%.o,$(KERNEL_ASMS_COMMON)) \
 
 KERNEL_ARCH_OBJS   := $(patsubst $(KERNEL_ARCH_DIR)/%.c,$(KERNEL_BUILD_ARCH)/%.o,$(KERNEL_ARCH_CSRC)) \
                       $(patsubst $(KERNEL_ARCH_DIR)/%.S,$(KERNEL_BUILD_ARCH)/%.o,$(KERNEL_ASMS_ARCH))
 
-KERNEL_OBJS := $(KERNEL_COMMON_OBJS) $(KERNEL_ARCH_OBJS)
+KERNEL_VMM_OBJS    := $(patsubst $(KERNEL_VMM_DIR)/%.c,$(KERNEL_BUILD_VMM)/%.o,$(KERNEL_VMM_CSRC)) \
+                      $(patsubst $(KERNEL_VMM_DIR)/%.S,$(KERNEL_BUILD_VMM)/%.o,$(KERNEL_ASMS_VMM))
+
+KERNEL_OBJS := $(KERNEL_COMMON_OBJS) $(KERNEL_ARCH_OBJS) $(KERNEL_VMM_OBJS)
 
 # ==== Flags ====
 CFLAGS_EFI  := $(EFIINCS) \
@@ -131,6 +138,14 @@ $(KERNEL_BUILD_ARCH)/%.o: $(KERNEL_ARCH_DIR)/%.c
 	$(CC) $(CFLAGS_KERNEL) -c $< -o $@
 
 $(KERNEL_BUILD_ARCH)/%.o: $(KERNEL_ARCH_DIR)/%.S
+	@$(MKDIR_P) $(dir $@)
+	$(CC) $(CFLAGS_KERNEL) -c $< -o $@
+
+$(KERNEL_BUILD_VMM)/%.o: $(KERNEL_VMM_DIR)/%.c
+	@$(MKDIR_P) $(dir $@)
+	$(CC) $(CFLAGS_KERNEL) -c $< -o $@
+
+$(KERNEL_BUILD_VMM)/%.o: $(KERNEL_VMM_DIR)/%.S
 	@$(MKDIR_P) $(dir $@)
 	$(CC) $(CFLAGS_KERNEL) -c $< -o $@
 

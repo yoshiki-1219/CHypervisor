@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "arch/x86/paging.h"
+#include "arch/x86/arch_x86_low.h"
 #include "memmap.h"
 #include "log.h"
 
@@ -119,7 +120,7 @@ static pt_t *clone_lv3(pt_t *old_lv3)
 static int clone_kernel_upper_half(pt_t *new_lv4)
 {
     /* 旧 CR3 の Lv4 を辿る（UEFI が設定したもの） */
-    uint64_t old_cr3 = x86_read_cr3();
+    uint64_t old_cr3 = read_cr3();
     pt_t *old_lv4 = (pt_t*)paging_phys2virt(old_cr3 & PTE_ADDR_MASK);
 
     /* DirectMap の直後（= 上位ハーフ全域）を対象にクローン */
@@ -157,7 +158,7 @@ int paging_reconstruct(void)
 
     /* CR3 切替（TLB は暗黙にフラッシュされる） */
     uint64_t new_cr3 = paging_virt2phys((uint64_t)g_new_lv4) & PTE_ADDR_MASK;
-    x86_write_cr3(new_cr3);
+    write_cr3(new_cr3);
 
     KLOG_INFO("paging", "CR3 switched: new_lv4=%p", (void*)g_new_lv4);
     return 0;

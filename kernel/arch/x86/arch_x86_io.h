@@ -2,7 +2,6 @@
 #pragma once
 #include <stdint.h>
 
-/* CPU ヒント。スピン時の電力とバス競合を軽減 */
 static inline void cpu_relax(void) {
     __asm__ __volatile__("pause");
 }
@@ -15,6 +14,5 @@ static inline uint8_t inb(uint16_t port) {
     return v;
 }
 static inline void io_wait(void) {
-    /* 伝統的な I/O wait。適当なポートへ write（何でも可） */
     __asm__ __volatile__("outb %%al, $0x80" :: "a"(0));
 }
