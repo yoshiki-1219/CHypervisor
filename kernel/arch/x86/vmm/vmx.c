@@ -8,6 +8,7 @@
 #include "common.h"
 #include "arch/x86/arch_x86_low.h"
 #include "arch/x86/vmm/vmx_log.h"
+#include "arch/x86/vmm/vcpu.h"
 
 /* ---------- VMX 命令ラッパ（RFLAGS を成否で返す） ---------- */
 
@@ -74,28 +75,28 @@ static int vmx_enable_feature_control_outside_smx(void)
 
 /* ---------- VMXON Region の確保 ---------- */
 
-static void*   s_vmxon_va   = NULL;
-static uint64_t s_vmxon_pa  = 0;
-
-static int vmx_alloc_and_init_vmxon_region(void)
+static void* vmx_alloc_and_init_vmxon_region(void)
 {
+    void*   vmxon_va   = NULL;
     /* 4KiB アライン 1ページ確保（実装依存サイズだが通常 4KiB） */
-    s_vmxon_va = page_alloc_4k_aligned();
-    if (!s_vmxon_va) return -1;
-    memset(s_vmxon_va, 0, 4096);
+    vmxon_va = page_alloc_4k_aligned();
+    if (!vmxon_va) return NULL;
+    memset(vmxon_va, 0, 4096);
 
     ia32_vmx_basic_t basic; basic.u64 = rdmsr(IA32_VMX_BASIC);
     /* 先頭 4 バイトに VMCS revision ID を書く */
-    *(uint32_t*)s_vmxon_va = (uint32_t)basic.vmcs_revision_id;
+    *(uint32_t*)vmxon_va = (uint32_t)basic.vmcs_revision_id;
 
-    s_vmxon_pa = virt2phys((uint64_t)s_vmxon_va);
-    return 0;
+    return vmxon_va;
 }
 
 /* ---------- 公開 API：VMX Root Operation へ入る ---------- */
 
-int vmx_init_and_enter(void)
+int vmx_init_and_enter(Vcpu* vcpu)
 {
+    void*   vmxon_va   = NULL;
+    uint64_t vmxon_pa  = 0;
+
     /* 1) Vendor/機能チェック */
     char vendor[12];
     cpuid_get_vendor(vendor);
@@ -121,16 +122,22 @@ int vmx_init_and_enter(void)
     vmx_adjust_cr0_cr4();
 
     /* 4) VMXON Region 準備（先頭に revision_id 設定） */
-    if (vmx_alloc_and_init_vmxon_region() != 0) {
+    vmxon_va = vmx_alloc_and_init_vmxon_region();
+    if (!vmxon_va) {
         KLOG_ERROR("vmx", "Failed to allocate VMXON region");
         return -1;
     }
+    vmxon_pa = virt2phys((uint64_t)vmxon_va);
+    KLOG_DEBUG("vmx", "Allocate vmxon_region at 0x%llx (HVA)", (uint64_t)vmxon_va);
+    KLOG_DEBUG("vmx", "Allocate vmxon_region at 0x%llx (HPA)", (uint64_t)vmxon_pa);
 
     /* 5) VMXON 実行（物理アドレスを間接オペランドで渡す） */
-    if (asm_vmxon(s_vmxon_pa) != 0) {
+    if (asm_vmxon(vmxon_pa) != 0) {
         KLOG_ERROR("vmx", "VMXON failed");
         return -1;
     }
+
+    vcpu->vmxon_region = vmxon_va;
 
     KLOG_INFO("vmx", "Entered VMX Root Operation (VMXON ok)");
     return 0;

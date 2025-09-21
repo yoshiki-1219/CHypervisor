@@ -2,6 +2,12 @@
 #include <stdint.h>
 #include <stddef.h>
 
+/*
+CF=0 かつ ZF=0 … 成功
+CF=1 かつ ZF=0 … VMfailInvalid（不正条件。エラーコードは記録されない）
+CF=0 かつ ZF=1 … VMfailValid（正当な失敗。VMCS にエラーコードが格納される）
+CF=1 かつ ZF=1 … 未定義
+*/
 static inline int vmx_check_rflags(uint64_t rflags) {
     const uint64_t CF = 1ull << 0;
     const uint64_t ZF = 1ull << 6;

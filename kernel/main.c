@@ -2,6 +2,7 @@
 #include "serial.h"
 #include "bootinfo.h"
 #include "log.h"
+#include "common.h"
 #include "arch/x86/gdt.h"
 #include "arch/x86/idt.h"
 #include "arch/x86/isr.h"
@@ -15,6 +16,7 @@
 #include "arch/x86/vmm/vmcs.h"
 #include "arch/x86/vmm/vmx_log.h"
 #include "arch/x86/vmm/vcpu.h"
+#include "arch/x86/vmm/ept.h"
 
 /* リンカスクリプトで定義するスタック境界シンボル
    - 配列ではなく「オブジェクトの先頭アドレス」という意味で uint8_t を使う
@@ -81,11 +83,11 @@ static void kernelMain(BOOT_INFO *bi)
     KLOG_DEBUG("main", "BOOTINFO magic=0x%016llX",
                (unsigned long long)bi->magic);
 
-    /* GDT → IDT（順序はこのままでOK） */
+    
     gdt_init();
     KLOG_INFO("main", "Initialized GDT.");
 
-    intr_init_all_vectors();   /* IDT 構築＋LIDT＋STI */
+    intr_init_all_vectors();
     KLOG_INFO("main", "Initialized IDT.");
 
     page_allocator_init(bootinfo_snapshot_memmap());
@@ -104,21 +106,41 @@ static void kernelMain(BOOT_INFO *bi)
     pic_init();
     KLOG_INFO("main", "Initialized PIC.");
 
-    if (vmx_init_and_enter() != 0) {
+    Vcpu *vcpu = kmalloc(sizeof(Vcpu), PAGE_SIZE_4K);
+    vcpu->vpid = 1;
+    vcpu->id   = 1;
+
+    KLOG_INFO("main", "Initialized VMX");
+    if (vmx_init_and_enter(vcpu) != 0) {
         KLOG_ERROR("kmain", "VMX root entry failed");
         panic("VMXON failed");
     }
-
-    void* vmcs_va = NULL;
-    if (vmcs_alloc_and_load(&vmcs_va) != 0) {
-        KLOG_ERROR("main", "vmcs_alloc_and_load failed");
+    
+    KLOG_INFO("main", "Allocating VMCS...");
+    if (vmcs_alloc_and_load(vcpu) != 0) {
+        KLOG_ERROR("main", "Allocating VMCS failed");
         panic("VMCS load failed");
     }
 
-    KLOG_INFO("main", "Starting the virtual machine...");
-    if (vcpu_build_vmcs_and_launch() != 0) {
-        KLOG_ERROR("main", "VMLAUNCH failed");
+    KLOG_INFO("main", "Setting VMCS...");
+    if (vcpu_build_vmcs(vcpu) != 0) {
+        KLOG_ERROR("main", "Setting VMCS failed");
+         panic("VMCS set failed");
     }
+
+    KLOG_INFO("main", "Setting EPT...");
+    if (vcpu_setup_ept(vcpu) != 0){
+        KLOG_ERROR("main", "Setting EPT falied");
+         panic("EPT set failed");
+    }
+
+    KLOG_INFO("main", "Loading blobGuest at %llx...", vcpu->guest_base);
+    const uint8_t* src = (const uint8_t*)&blobGuest;
+    memcpy(vcpu->guest_base, src, 0x40);
+
+    KLOG_INFO("main", "Starting virtual machine...");
+    
+    vcpu_loop(vcpu);
 
     for (;;) __asm__ __volatile__("hlt");
 }

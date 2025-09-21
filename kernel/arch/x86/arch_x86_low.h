@@ -42,3 +42,29 @@ static inline uint64_t read_cr4(void){uint64_t v;__asm__ __volatile__("mov %%cr4
 static inline void write_cr0(uint64_t v){__asm__ __volatile__("mov %0,%%cr0"::"r"(v):"memory"); }
 static inline void write_cr3(uint64_t v){__asm__ __volatile__("mov %0,%%cr3"::"r"(v):"memory");}
 static inline void write_cr4(uint64_t v){__asm__ __volatile__("mov %0,%%cr4"::"r"(v):"memory");}
+
+/* ==========================================================
+ * CR0 helpers (mask-based, no C bitfields)
+ * ========================================================== */
+
+/* CR0 bit positions (SDM Vol.3) */
+#define CR0_PE  (1ull << 0)   /* Protected Mode Enable */
+#define CR0_MP  (1ull << 1)   /* Monitor Coprocessor   */
+#define CR0_EM  (1ull << 2)   /* Emulation             */
+#define CR0_TS  (1ull << 3)   /* Task Switched         */
+#define CR0_ET  (1ull << 4)   /* Extension Type        */
+#define CR0_NE  (1ull << 5)   /* Numeric Error         */
+/* [15:6] reserved in Zig view ⇒ ここはRMWで保持 */
+#define CR0_WP  (1ull << 16)  /* Write Protect         */
+/* [17] reserved */
+#define CR0_AM  (1ull << 18)  /* Alignment Mask        */
+/* [28:19] reserved */
+#define CR0_NW  (1ull << 29)  /* Not Write-through     */
+#define CR0_CD  (1ull << 30)  /* Cache Disable         */
+#define CR0_PG  (1ull << 31)  /* Paging                */
+/* [63:32] reserved */
+
+/* 便利マスク */
+#define CR0_CACHE_DISABLE_MASK   (CR0_CD | CR0_NW)
+#define CR0_PAGING_BITS          (CR0_PG | CR0_WP)
+#define CR0_FPU_RELATED_MASK     (CR0_MP | CR0_EM | CR0_TS | CR0_NE)

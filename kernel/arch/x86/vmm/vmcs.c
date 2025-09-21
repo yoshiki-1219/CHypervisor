@@ -6,6 +6,7 @@
 #include "log.h"
 #include "panic.h"
 #include "arch/x86/vmm/vmx_log.h"
+#include "arch/x86/vmm/vcpu.h"
 
 static inline int asm_vmclear(uint64_t pa)
 {
@@ -86,11 +87,11 @@ int vmcs_vmread(uint64_t field, uint64_t* out_value)
 
 /* ================= VMCS Region の確保とロード =============== */
 
-static void*    s_vmcs_va  = 0;
-static uint64_t s_vmcs_pa  = 0;
-
-int vmcs_alloc_and_load(void** out_vmcs_va)
+int vmcs_alloc_and_load(Vcpu *vcpu)
 {
+    void*    s_vmcs_va  = 0;
+    uint64_t s_vmcs_pa  = 0;
+
     /* 1) 4KiB ページ確保＆クリア */
     s_vmcs_va = page_alloc_4k_aligned();
     if (!s_vmcs_va) {
@@ -117,8 +118,8 @@ int vmcs_alloc_and_load(void** out_vmcs_va)
         return -1;
     }
 
-    if (out_vmcs_va) *out_vmcs_va = s_vmcs_va;
+    if (vcpu) vcpu->vmcs_region = s_vmcs_va;
     KLOG_INFO("vmcs", "VMCS loaded: va=%p pa=0x%llX rev=0x%llX",
-              s_vmcs_va, (unsigned long long)s_vmcs_pa, (unsigned)rev);
+              s_vmcs_va, (uint64_t)s_vmcs_pa, (uint64_t)rev);
     return 0;
 }

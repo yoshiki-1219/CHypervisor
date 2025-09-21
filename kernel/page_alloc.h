@@ -19,4 +19,5 @@ void  page_free_bytes(void* ptr, size_t nbytes);
 /* ページ数とアラインメント（>= PAGE_SIZE）を指定して確保 */
 void* page_alloc_pages(size_t num_pages, size_t align_bytes);
 void* page_alloc_4k_aligned(void);
+void* page_alloc_4k_zero(void);
 void  page_free_4k(void* ptr);

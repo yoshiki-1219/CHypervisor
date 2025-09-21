@@ -25,3 +25,14 @@ int memcmp(const void* s1, const void* s2, size_t n)
     }
     return 0;
 }
+
+void* memset(void* s, int c, size_t n)
+{
+    unsigned char* p = (unsigned char*)s;
+    unsigned char  v = (unsigned char)c;
+
+    while (n--) {
+        *p++ = v;
+    }
+    return s;
+}

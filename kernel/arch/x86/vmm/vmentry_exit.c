@@ -2,9 +2,6 @@
 #include <stddef.h> 
 #include "arch/x86/vmm/vcpu.h"
 
-/* C ヘルパ（シンボル名は上の C と一致させる） */
-void set_host_rsp_thunk(uint64_t rsp);
-
 /* =========================================================
  * asm_vmentry(vcpu):
  *   - callee-saved を保存
@@ -14,8 +11,9 @@ void set_host_rsp_thunk(uint64_t rsp);
  *   - 成功ならゲストへ飛ぶ（戻らない）、失敗なら al=1 で ret
  *   戻り値: al=0 成功（= VMEXIT 経由で戻ってくる）, al=1 失敗
  * ========================================================= */
-__attribute__((naked)) uint8_t asm_vmentry(Vcpu* vcpu __attribute__((unused))) {
+__attribute__((naked)) uint8_t asm_vmentry(Vcpu* vcpu) {
     __asm__ __volatile__(
+        "push %%rbp\n\t"
         "push %%rbp\n\t"
         "push %%r15\n\t"
         "push %%r14\n\t"
@@ -26,9 +24,11 @@ __attribute__((naked)) uint8_t asm_vmentry(Vcpu* vcpu __attribute__((unused))) {
         "mov  %%rdi, %%rbx\n\t"
         "add  $%c[off_guest], %%rbx\n\t"
         "push %%rbx\n\t"
-
+        
+        "push %%rdi\n\t"
         "lea  8(%%rsp), %%rdi\n\t"
         "call set_host_rsp_thunk\n\t"
+        "pop %%rdi\n\t"
 
         "testb $1, %c[off_launch](%%rdi)\n\t"
 
@@ -47,6 +47,7 @@ __attribute__((naked)) uint8_t asm_vmentry(Vcpu* vcpu __attribute__((unused))) {
         "mov  %c[off_r13](%%rax), %%r13\n\t"
         "mov  %c[off_r14](%%rax), %%r14\n\t"
         "mov  %c[off_r15](%%rax), %%r15\n\t"
+
         "movaps %c[off_xmm0](%%rax), %%xmm0\n\t"
         "movaps %c[off_xmm1](%%rax), %%xmm1\n\t"
         "movaps %c[off_xmm2](%%rax), %%xmm2\n\t"
@@ -70,9 +71,10 @@ __attribute__((naked)) uint8_t asm_vmentry(Vcpu* vcpu __attribute__((unused))) {
         "pop %%r14\n\t"
         "pop %%r15\n\t"
         "pop %%rbp\n\t"
+        "pop %%rbp\n\t"
         "ret\n\t"
         :
-        : /* 即値オペランドは現状のままでOK */
+        :
           [off_guest]  "i"(offsetof(Vcpu, guest_regs)),
           [off_launch] "i"(offsetof(Vcpu, launch_done)),
           [off_rax]    "i"(offsetof(GuestRegisters, rax)),
@@ -151,6 +153,7 @@ __attribute__((naked)) void asm_vmexit(void) {
         "pop %r13\n\t"
         "pop %r14\n\t"
         "pop %r15\n\t"
+        "pop %rbp\n\t"
         "pop %rbp\n\t"
 
         /* 成功で C に返る合図: al=0 */

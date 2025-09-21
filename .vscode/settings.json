@@ -12,6 +12,10 @@
         "panic.h": "c",
         "stddef.h": "c",
         "arch_x86_low.h": "c",
-        "gdt.h": "c"
+        "gdt.h": "c",
+        "vcpu.h": "c",
+        "ept.h": "c",
+        "msr.h": "c",
+        "vmx_vpid.h": "c"
     }
 }

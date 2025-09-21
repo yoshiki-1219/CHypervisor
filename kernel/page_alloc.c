@@ -1,5 +1,6 @@
 #include "page_alloc.h"
 #include "memmap.h"
+#include "common.h"
 #include "bootinfo.h"
 #include "arch/x86/paging.h"
 #include <string.h>
@@ -224,6 +225,18 @@ void* page_alloc_pages(size_t num_pages, size_t align_bytes)
     uintptr_t phys = frame_to_phys(start);
     return (void*)phys2virt(phys);
 }
+
+void* page_alloc_4k_zero(void)
+{
+    /* 1ページ(4KiB)を4KiB境界で確保 */
+    void* p = page_alloc_pages(1, PAGE_SIZE);
+    if (!p) return NULL;
+
+    /* 物理ページに対応するカーネル仮想アドレス側をゼロクリア */
+    memset(p, 0, PAGE_SIZE);
+    return p;
+}
+
 
 void* page_alloc_4k_aligned(void)
 {
