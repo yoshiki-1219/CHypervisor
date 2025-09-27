@@ -1,35 +1,43 @@
 #include "idt.h"
 #include <string.h>
 
-static __attribute__((aligned(4096))) idt_gate_t g_idt[IDT_MAX_GATES];
-static idtr_t g_idtr;
+/* IDT のエントリ数 (x86-64 固定) */
+#define IDT_MAX_ENTRIES 256
 
-static inline void lidt(const idtr_t* idtr) { __asm__ __volatile__("lidt (%0)"::"r"(idtr)); }
+/* IDT 本体と IDTR */
+static __attribute__((aligned(4096))) IdtGate g_idt[IDT_MAX_ENTRIES];
+static IdtRegister g_idtr;
 
-void idt_set_gate(int vec, void (*isr)(void), uint16_t cs_selector, uint8_t gate_type, uint8_t dpl)
+/* IDT エントリ設定 */
+void idt_set_entry(int vector, void (*isr)(void),
+                   uint16_t cs_selector, uint8_t gate_type, uint8_t dpl)
 {
-    uint64_t off = (uint64_t)(uintptr_t)isr;
-    idt_gate_t g = {0};
-    g.offset_low  = (uint16_t)(off & 0xFFFFu);
-    g.selector    = cs_selector;
-    g.ist         = 0;
-    g.rsv1        = 0;
-    g.type        = gate_type & 0xF;   /* 0xE: interrupt gate */
-    g.zero        = 0;
-    g.dpl         = dpl & 0x3;
-    g.p           = 1;
-    g.offset_mid  = (uint16_t)((off >> 16) & 0xFFFFu);
-    g.offset_high = (uint32_t)((off >> 32) & 0xFFFFFFFFu);
-    g.rsv2        = 0;
+    uint64_t offset = (uint64_t)(uintptr_t)isr;
 
-    g_idt[vec] = g;
+    IdtGate gate = {0};
+    gate.offset_low   = (uint16_t)(offset & 0xFFFFu);
+    gate.selector     = cs_selector;
+    gate.ist          = 0;
+    gate.reserved1    = 0;
+    gate.type         = gate_type & 0xF;   /* 0xE: interrupt gate */
+    gate.zero         = 0;
+    gate.dpl          = dpl & 0x3;
+    gate.present      = 1;
+    gate.offset_mid   = (uint16_t)((offset >> 16) & 0xFFFFu);
+    gate.offset_high  = (uint32_t)((offset >> 32) & 0xFFFFFFFFu);
+    gate.reserved2    = 0;
+
+    g_idt[vector] = gate;
 }
 
+/* IDT 初期化 */
 void idt_init(void)
 {
-    /* クリアしてから LIDT */
+    /* IDT 全クリア */
     memset(g_idt, 0, sizeof(g_idt));
+
     g_idtr.limit = (uint16_t)(sizeof(g_idt) - 1);
     g_idtr.base  = (uint64_t)(uintptr_t)g_idt;
-    lidt(&g_idtr);
+
+    load_idtr(&g_idtr);
 }

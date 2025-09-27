@@ -1,10 +1,10 @@
 #include <stdint.h>
-#include <string.h>
 #include "vmcs.h"
 #include "msr.h"
 #include "paging.h"
 #include "log.h"
 #include "panic.h"
+#include "common.h"
 #include "arch/x86/vmm/vmx_log.h"
 #include "arch/x86/vmm/vcpu.h"
 

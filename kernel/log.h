@@ -5,10 +5,6 @@
 #include <stdint.h>
 #include "serial.h"
 
-#ifdef __cplusplus
-extern "C" { 
-#endif
-
 typedef enum {
     KLOG_DEBUG = 0,
     KLOG_INFO  = 1,
@@ -34,7 +30,3 @@ void klog_vlogf(klog_level_t level, const char* scope, const char* fmt, va_list 
 #define KLOG_INFO(scope,  fmt, ...) klog_logf(KLOG_INFO,  (scope), (fmt), ##__VA_ARGS__)
 #define KLOG_WARN(scope,  fmt, ...) klog_logf(KLOG_WARN,  (scope), (fmt), ##__VA_ARGS__)
 #define KLOG_ERROR(scope, fmt, ...) klog_logf(KLOG_ERROR, (scope), (fmt), ##__VA_ARGS__)
-
-#ifdef __cplusplus
-}
-#endif

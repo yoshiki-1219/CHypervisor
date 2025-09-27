@@ -2,15 +2,16 @@
 #include "serial.h"
 #include "bootinfo.h"
 #include "log.h"
+#include "vm.h"
 #include "common.h"
 #include "arch/x86/gdt.h"
 #include "arch/x86/idt.h"
-#include "arch/x86/isr.h"
 #include "arch/x86/paging.h"
 #include "bin_alloc.h"
 #include "arch/x86/pic.h"
 #include "page_alloc.h"
 #include "memmap.h"
+#include "linux_guest.h"
 #include "panic.h"
 #include "arch/x86/vmm/vmx.h"
 #include "arch/x86/vmm/vmcs.h"
@@ -35,6 +36,7 @@ void kernelEntry(void *bi)   // SysV: 第1引数は RDI
 
     __asm__ __volatile__ (
         ".intel_syntax noprefix   \n\t"
+        "cli                      \n\t"
         "mov   rsp, %0            \n\t"  // 新スタック
         "mov   rdi, %2            \n\t"  // 第1引数 = bi（明示して安心）
         "call  %1                 \n\t"  // ※ Intel 構文なので '*' は付けない
@@ -71,7 +73,7 @@ static void kernelMain(BOOT_INFO *bi)
     serial_device_t com1;
     serial_init(&com1, COM1, 115200);
 
-    /* --- ログ初期化 --- */
+    // /* --- ログ初期化 --- */
     klog_init(&com1, (klog_options_t){ .level = KLOG_DEBUG });
 
     if (bootinfo_snapshot_init(bi) != 0) {
@@ -80,24 +82,26 @@ static void kernelMain(BOOT_INFO *bi)
     }
     
     KLOG_INFO("main", "Booting kernel...");
-    KLOG_DEBUG("main", "BOOTINFO magic=0x%016llX",
-               (unsigned long long)bi->magic);
-
     
     gdt_init();
+    intr_init_all_vectors();
     KLOG_INFO("main", "Initialized GDT.");
 
+    idt_init();
     intr_init_all_vectors();
     KLOG_INFO("main", "Initialized IDT.");
 
-    page_allocator_init(bootinfo_snapshot_memmap());
+    MEMORY_MAP *map = bootinfo_snapshot_memmap();
+    page_allocator_init(map);
+
     KLOG_INFO("main", "Reconstructing memory mapping...");
     if (paging_reconstruct_and_mark() != 0) {
         KLOG_ERROR("main", "paging reconstruct failed");
         for(;;) __asm__ __volatile__("hlt");
     }
     KLOG_INFO("main", "Paging is reconstructed.");
-    page_allocator_release_boot_services_data(bootinfo_snapshot_memmap());
+    
+    page_allocator_release_boot_services_data(map);
     KLOG_INFO("main", "BootServicesData released to allocator.");
 
     bin_alloc_init();
@@ -106,7 +110,8 @@ static void kernelMain(BOOT_INFO *bi)
     pic_init();
     KLOG_INFO("main", "Initialized PIC.");
 
-    Vcpu *vcpu = kmalloc(sizeof(Vcpu), PAGE_SIZE_4K);
+    Vm   *vm   = kmalloc(sizeof(Vm), PAGE_SIZE_4K);
+    Vcpu *vcpu = &vm->vcpu;
     vcpu->vpid = 1;
     vcpu->id   = 1;
 
@@ -115,7 +120,7 @@ static void kernelMain(BOOT_INFO *bi)
         KLOG_ERROR("kmain", "VMX root entry failed");
         panic("VMXON failed");
     }
-    
+
     KLOG_INFO("main", "Allocating VMCS...");
     if (vmcs_alloc_and_load(vcpu) != 0) {
         KLOG_ERROR("main", "Allocating VMCS failed");
@@ -134,12 +139,16 @@ static void kernelMain(BOOT_INFO *bi)
          panic("EPT set failed");
     }
 
-    KLOG_INFO("main", "Loading blobGuest at %llx...", vcpu->guest_base);
-    const uint8_t* src = (const uint8_t*)&blobGuest;
-    memcpy(vcpu->guest_base, src, 0x40);
+    vm->guest_mem_size = 100 * 1024 * 1024;
+    vm->guest_mem = vm->vcpu.guest_base;
+    GUEST_INFO gi;
+    gi.guest_image = phys2virt(bootinfo_snapshot_guestinfo()->guest_image);
+    gi.guest_size  = bootinfo_snapshot_guestinfo()->guest_size;
+    loadKernel(vm, &gi);
+
+    memcpy(vm->guest_mem + 0x20000, blobGuest, 0x20);
 
     KLOG_INFO("main", "Starting virtual machine...");
-    
     vcpu_loop(vcpu);
 
     for (;;) __asm__ __volatile__("hlt");

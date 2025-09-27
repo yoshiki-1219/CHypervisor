@@ -127,7 +127,9 @@ int vmx_init_and_enter(Vcpu* vcpu)
         KLOG_ERROR("vmx", "Failed to allocate VMXON region");
         return -1;
     }
+
     vmxon_pa = virt2phys((uint64_t)vmxon_va);
+
     KLOG_DEBUG("vmx", "Allocate vmxon_region at 0x%llx (HVA)", (uint64_t)vmxon_va);
     KLOG_DEBUG("vmx", "Allocate vmxon_region at 0x%llx (HPA)", (uint64_t)vmxon_pa);
 

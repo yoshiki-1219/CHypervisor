@@ -16,6 +16,15 @@
         "vcpu.h": "c",
         "ept.h": "c",
         "msr.h": "c",
-        "vmx_vpid.h": "c"
+        "vmx_vpid.h": "c",
+        "common.h": "c",
+        "linux_guest.h": "c",
+        "bootinfo.h": "c",
+        "page_alloc.h": "c",
+        "isr.h": "c",
+        "stdbool.h": "c",
+        "pic.h": "c",
+        "asm_x86.h": "c",
+        "paging.h": "c"
     }
 }

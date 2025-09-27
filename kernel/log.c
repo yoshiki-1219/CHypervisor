@@ -1,4 +1,5 @@
 #include "log.h"
+#include "serial.h"
 #include <stdarg.h>
 #include <stdint.h>
 
@@ -48,10 +49,7 @@ static void write_int_padded(int64_t x, int width, int zero_pad) {
         write_uint_padded((uint64_t)x, 10, width, zero_pad, 0);
     }
 }
-/* Zig の「scope 7 文字整形」を再現。
- * 長さ <=7 : "xxxxxxx | "
- * 長さ > 7 : "xxxxxxx-| "
- */
+
 static void write_scope_field(const char* scope) {
     char buf[12]; /* 7 + (" | " or "-| ") = 最大 10。余裕を持って 12 */
     int i = 0;

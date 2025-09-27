@@ -44,7 +44,7 @@ static inline void write_cr3(uint64_t v){__asm__ __volatile__("mov %0,%%cr3"::"r
 static inline void write_cr4(uint64_t v){__asm__ __volatile__("mov %0,%%cr4"::"r"(v):"memory");}
 
 /* ==========================================================
- * CR0 helpers (mask-based, no C bitfields)
+ * CR helpers (mask-based, no C bitfields)
  * ========================================================== */
 
 /* CR0 bit positions (SDM Vol.3) */
@@ -64,7 +64,31 @@ static inline void write_cr4(uint64_t v){__asm__ __volatile__("mov %0,%%cr4"::"r
 #define CR0_PG  (1ull << 31)  /* Paging                */
 /* [63:32] reserved */
 
-/* 便利マスク */
-#define CR0_CACHE_DISABLE_MASK   (CR0_CD | CR0_NW)
-#define CR0_PAGING_BITS          (CR0_PG | CR0_WP)
-#define CR0_FPU_RELATED_MASK     (CR0_MP | CR0_EM | CR0_TS | CR0_NE)
+/* CR4 bit positions (SDM Vol.3) */
+#define CR4_VME        (1ull << 0)   /* Virtual-8086 Mode Extensions */
+#define CR4_PVI        (1ull << 1)   /* Protected Mode Virtual Interrupts */
+#define CR4_TSD        (1ull << 2)   /* Time Stamp Disable */
+#define CR4_DE         (1ull << 3)   /* Debugging Extensions */
+#define CR4_PSE        (1ull << 4)   /* Page Size Extensions */
+#define CR4_PAE        (1ull << 5)   /* Physical Address Extension */
+#define CR4_MCE        (1ull << 6)   /* Machine Check Enable */
+#define CR4_PGE        (1ull << 7)   /* Page Global Enable */
+#define CR4_PCE        (1ull << 8)   /* Performance Monitoring Counter Enable */
+#define CR4_OSFXSR     (1ull << 9)   /* OS support for FXSAVE/FXRSTOR */
+#define CR4_OSXMMEXCPT (1ull << 10)  /* OS support for unmasked SIMD FP exceptions */
+#define CR4_UMIP       (1ull << 11)  /* User-Mode Instruction Prevention */
+#define CR4_LA57       (1ull << 12)  /* 5-Level Paging (57-bit linear addresses) */
+#define CR4_VMXE       (1ull << 13)  /* VMX Enable */
+#define CR4_SMXE       (1ull << 14)  /* SMX Enable */
+/* [15] reserved */
+#define CR4_FSGSBASE   (1ull << 16)  /* Enable RDFSBASE/WRFSBASE/etc. */
+#define CR4_PCIDE      (1ull << 17)  /* PCID Enable */
+#define CR4_OSXSAVE    (1ull << 18)  /* XSAVE and extended states enable */
+/* [19] reserved */
+#define CR4_SMEP       (1ull << 20)  /* Supervisor Mode Execution Prevention */
+#define CR4_SMAP       (1ull << 21)  /* Supervisor Mode Access Prevention */
+#define CR4_PKE        (1ull << 22)  /* Protection Key Enable */
+#define CR4_CET        (1ull << 23)  /* Control-flow Enforcement Technology */
+#define CR4_PKS        (1ull << 24)  /* Protection Keys for Supervisor pages */
+/* [63:25] reserved */
+

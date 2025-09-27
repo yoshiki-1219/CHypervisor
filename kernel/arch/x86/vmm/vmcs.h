@@ -201,24 +201,31 @@ enum {
  *   cf. SDM Vol.3C 25.4, Appendix B
  * =========================================================== */
 
-#define AR_TYPE(x)   ((uint32_t)((x) & 0xF))    /* bits 0-3 */
-#define AR_S_CODEDATA (1u<<4)                   /* S=1 */
-#define AR_S_SYSTEM   (0u<<4)                   /* S=0 */
-#define AR_DPL(n)    ((uint32_t)(((n)&0x3)<<5)) /* DPL bits 5-6 */
-#define AR_P         (1u<<7)                    /* Present */
-#define AR_AVL       (1u<<12)
-#define AR_L         (1u<<13)                   /* 64-bit */
-#define AR_DB        (1u<<14)                   /* D/B */
-#define AR_G         (1u<<15)                   /* Granularity(4KB) */
-#define AR_UNUSABLE  (1u<<16)
+// SegmentRights を 32bit にパック
+typedef struct __attribute__((packed)) {
+    uint32_t accessed     : 1;  // セグメントがアクセスされたか
+    uint32_t rw           : 1;  // 読み取り/書き込み可能
+    uint32_t dc           : 1;  // Direction / Conforming
+    uint32_t executable   : 1;  // 実行可能か
+    uint32_t desc_type    : 1;  // DescriptorType (system/code_data)
+    uint32_t dpl          : 2;  // Descriptor Privilege Level (0～3)
+    uint32_t present      : 1;  // セグメントが有効か
 
-/* Type（下位4bit）：コード/データは “Accessed, RW, DC/ED, Exec” の並び */
-#define TYPE_CODE_ER_AC   AR_TYPE(0xB) /* 1011: Code Execute/Read, Accessed=1 */
-#define TYPE_DATA_RW_AC   AR_TYPE(0x3) /* 0011: Data Read/Write, Accessed=1  */
+    uint32_t reserved1    : 4;  // 予約
+    uint32_t avl          : 1;  // ソフトウェア用の自由領域
+    uint32_t long_mode    : 1;  // Long mode (x86-64 の64bitコード用)
+    uint32_t db           : 1;  // Default operation size (0=16bit, 1=32bit)
+    uint32_t granularity  : 1;  // Granularity (byte/kbyte)
 
-/* System Type（下位4bitは固定値） */
-#define TYPE_LDT          AR_TYPE(0x2)
-#define TYPE_TSS_BUSY     AR_TYPE(0xB)
+    uint32_t unusable     : 1;  // 未使用（falseなら通常利用可）
+    uint32_t reserved2    : 15; // 予約
+} SegmentRights;
+
+static inline uint32_t segment_rights_to_u32(SegmentRights s) {
+    union { SegmentRights f; uint32_t u; } conv = { .u = 0 };
+    conv.f = s;
+    return conv.u;
+}
 
 /* Natural width */
 enum {

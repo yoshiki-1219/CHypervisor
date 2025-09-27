@@ -53,6 +53,10 @@ KERNEL_ELF      := $(KERNEL_BUILD)/$(KERNEL_ELF_NAME)
 KERNEL_LDS      := $(KERNEL_DIR)/linker.ld
 KERNEL_OUT      := $(IMG_DIR)/$(KERNEL_ELF_NAME)
 
+# ==== Linux bzImage ====
+BZIMAGE         := bzImage
+BZIMAGE_OUT     := $(IMG_DIR)/$(BZIMAGE)
+
 # ---- Sources / Objects (UEFI) ----
 UEFI_COMMON_SRCS := $(wildcard $(UEFI_SRC_DIR)/*.c)
 UEFI_ARCH_SRCS   := $(wildcard $(UEFI_ARCH_DIR)/*.c)
@@ -96,7 +100,7 @@ CFLAGS_KERNEL := -ffreestanding -fno-stack-protector -fno-omit-frame-pointer \
 LDFLAGS_KERNEL := -nostdlib -static -z max-page-size=0x1000 -T $(KERNEL_LDS)
 
 # ==== Default ====
-all: efi kernel install_kernel
+all: efi kernel install_kernel bzImage
 
 # ==== Rules: UEFI ====
 efi: $(UEFI_EFI)
@@ -160,8 +164,13 @@ install_kernel: kernel
 	$(CP) $(KERNEL_ELF) $(KERNEL_OUT)
 	@echo "Installed kernel: $(KERNEL_OUT)"
 
+bzImage: install_kernel
+	@$(MKDIR_P) $(IMG_DIR)
+	$(CP) $(BZIMAGE) $(BZIMAGE_OUT)
+	@echo "Installed bzImage: $(KERNEL_OUT)"
+
 # ==== Run ====
-install: efi install_kernel
+install: efi install_kernel bzImage
 	@echo "Installed: $(UEFI_EFI)"
 
 run: install

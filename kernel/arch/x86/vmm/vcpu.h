@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include "arch/x86/vmm/ept.h"
 
+struct Eptp;
+
 typedef struct __attribute__((aligned(16))) GuestRegisters {
     uint64_t rax, rcx, rdx, rbx, rbp, rsi, rdi;
     uint64_t r8,  r9,  r10, r11, r12, r13, r14, r15;
@@ -20,7 +22,7 @@ typedef struct Vcpu {
     uint16_t       vpid;
     void*          vmxon_region;
     void*          vmcs_region;
-    eptp_t         eptp;
+    Eptp         eptp;
     uint64_t       guest_base;
 
 } Vcpu;
