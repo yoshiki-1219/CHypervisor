@@ -7,6 +7,16 @@
 #include <log.h>
 #include "bin_alloc.h"
 
+int loadImage(void *memory, uint64_t memory_size, void *image, uint64_t image_size, uint64_t addr)
+{
+    if (memory_size < addr + image_size) {
+        return -1;
+    }
+
+    memcpy(memory + addr, image, image_size);
+    return 0;
+}
+
 int loadKernel(Vm *vm, GUEST_INFO* guest_info)
 {
     uint64_t guest_mem_size = vm->guest_mem_size;
@@ -71,14 +81,5 @@ int loadKernel(Vm *vm, GUEST_INFO* guest_info)
 
     KLOG_INFO("vm", "Guest memory region: 0x%llx - 0x%llx", 0, guest_mem_size);
     KLOG_INFO("vm", "Guest kernel code offset: 0x%llx", code_offset);
-}
-
-int loadImage(void *memory, uint64_t memory_size, void *image, uint64_t image_size, uint64_t addr)
-{
-    if (memory_size < addr + image_size) {
-        return -1;
-    }
-
-    memcpy(memory + addr, image, image_size);
     return 0;
 }

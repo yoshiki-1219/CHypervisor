@@ -18,6 +18,7 @@
 #include "arch/x86/vmm/vmx_log.h"
 #include "arch/x86/vmm/vcpu.h"
 #include "arch/x86/vmm/ept.h"
+#include "arch/x86/interrupt.h"
 
 /* リンカスクリプトで定義するスタック境界シンボル
    - 配列ではなく「オブジェクトの先頭アドレス」という意味で uint8_t を使う
@@ -91,7 +92,7 @@ static void kernelMain(BOOT_INFO *bi)
     intr_init_all_vectors();
     KLOG_INFO("main", "Initialized IDT.");
 
-    MEMORY_MAP *map = bootinfo_snapshot_memmap();
+    const MEMORY_MAP *map = bootinfo_snapshot_memmap();
     page_allocator_init(map);
 
     KLOG_INFO("main", "Reconstructing memory mapping...");
@@ -140,13 +141,13 @@ static void kernelMain(BOOT_INFO *bi)
     }
 
     vm->guest_mem_size = 100 * 1024 * 1024;
-    vm->guest_mem = vm->vcpu.guest_base;
-    GUEST_INFO gi;
-    gi.guest_image = phys2virt(bootinfo_snapshot_guestinfo()->guest_image);
-    gi.guest_size  = bootinfo_snapshot_guestinfo()->guest_size;
-    loadKernel(vm, &gi);
+    vm->guest_mem = (void*)(uintptr_t)vm->vcpu.guest_base;
+    // GUEST_INFO gi;
+    // gi.guest_image = phys2virt((uint64_t)bootinfo_snapshot_guestinfo()->guest_image);
+    // gi.guest_size  = bootinfo_snapshot_guestinfo()->guest_size;
+    // loadKernel(vm, &gi);
 
-    memcpy(vm->guest_mem + 0x20000, blobGuest, 0x20);
+    memcpy(vm->guest_mem + 0x4000, blobGuest, 0x20);
 
     KLOG_INFO("main", "Starting virtual machine...");
     vcpu_loop(vcpu);

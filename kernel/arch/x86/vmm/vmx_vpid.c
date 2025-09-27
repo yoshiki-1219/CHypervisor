@@ -1,4 +1,3 @@
-#pragma once
 #include <stdint.h>
 #include "arch/x86/vmm/ept.h"
 #include "arch/x86/vmm/vmcs.h"

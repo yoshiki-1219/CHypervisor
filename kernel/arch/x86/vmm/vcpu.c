@@ -9,6 +9,7 @@
 #include "arch/x86/vmm/vmcs.h"
 #include "arch/x86/vmm/vmx.h"
 #include "arch/x86/vmm/vmx_log.h"
+#include "arch/x86/vmm/vmx_vpid.h"
 #include "arch/x86/vmm/vcpu.h"
 #include "arch/x86/vmm/vmentry_exit.h"
 #include "arch/x86/msr.h"
@@ -84,6 +85,7 @@ static int setup_exec_controls(Vcpu* vcpu)
  *==========================================================*/
 static int setup_host_state(Vcpu* vcpu)
 {
+    (void)vcpu; 
     /* Control Registers */
     if (vmcs_vmwrite(VMCS_HOST_CR0, read_cr0()) != 0) return -1;
     if (vmcs_vmwrite(VMCS_HOST_CR3, read_cr3()) != 0) return -1;
@@ -335,7 +337,7 @@ static int setup_guest_state(Vcpu* vcpu)
     if (vmcs_vmwrite(VMCS_GUEST_RFLAGS, 0x2u /*IF=0, reserved=1*/) != 0) return -1;
 
     // Other crucial fields.
-    if (vmcs_vmwrite(VMCS_GUEST_RIP,    (uint64_t)0x20000) != 0) return -1;
+    if (vmcs_vmwrite(VMCS_GUEST_RIP,    (uint64_t)0x4000) != 0) return -1;
     if (vmcs_vmwrite(VMCS_GUEST_VMCS_LINK_POINTER, 0xFFFFFFFFFFFFFFFFull) != 0) return -1;
     vcpu->guest_regs.rsi = 0x00010000;
 

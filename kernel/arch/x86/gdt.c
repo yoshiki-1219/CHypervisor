@@ -1,4 +1,5 @@
 #include "gdt.h"
+#include "common.h"
 #include "arch/x86/arch_x86_low.h"
 
 #define GDT_MAX 0x10
@@ -13,8 +14,15 @@ static __attribute__((aligned(16))) Tss64 g_tss;
 /* ==================== ヘルパ ==================== */
 
 /* SegmentDescriptor → 64bit値に変換 */
-static inline uint64_t segdesc_to_u64(SegmentDescriptor d) {
-    return *(uint64_t*)&d;
+static inline uint64_t segdesc_to_u64(const SegmentDescriptor d) {
+    uint64_t v;
+    memcpy(&v, &d, sizeof v);
+    return v;
+}
+
+static inline void write_tss_desc(void *gdt_base, size_t entry_index, const TssDescriptor *desc) {
+    uint8_t *p = (uint8_t *)gdt_base + entry_index * 8;
+    memcpy(p, desc, sizeof *desc);
 }
 
 /* コードセグメント (64bit) */
@@ -79,7 +87,8 @@ static void set_tss_desc(uint16_t index, uint64_t base, uint32_t limit) {
         .base_high = (uint32_t)((base >> 32) & 0xFFFFFFFF),
         .reserved = 0,
     };
-    *(TssDescriptor*)&gdt[index] = desc;
+    write_tss_desc(gdt, index, &desc);
+
 }
 
 /* ==================== 公開 API ==================== */

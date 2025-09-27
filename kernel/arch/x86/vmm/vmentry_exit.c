@@ -12,6 +12,7 @@
  *   戻り値: al=0 成功（= VMEXIT 経由で戻ってくる）, al=1 失敗
  * ========================================================= */
 __attribute__((naked)) uint8_t asm_vmentry(Vcpu* vcpu) {
+    (void)vcpu; 
     __asm__ __volatile__(
         "push %%rbp\n\t"
         "push %%rbp\n\t"
