@@ -142,12 +142,13 @@ static void kernelMain(BOOT_INFO *bi)
 
     vm->guest_mem_size = 100 * 1024 * 1024;
     vm->guest_mem = (void*)(uintptr_t)vm->vcpu.guest_base;
-    // GUEST_INFO gi;
-    // gi.guest_image = phys2virt((uint64_t)bootinfo_snapshot_guestinfo()->guest_image);
-    // gi.guest_size  = bootinfo_snapshot_guestinfo()->guest_size;
-    // loadKernel(vm, &gi);
+    GUEST_INFO gi;
+    gi.guest_image = phys2virt((uint64_t)bootinfo_snapshot_guestinfo()->guest_image);
+    gi.guest_size  = bootinfo_snapshot_guestinfo()->guest_size;
+    loadKernel(vm, &gi);
 
-    memcpy(vm->guest_mem + 0x4000, blobGuest, 0x20);
+    memcpy(vm->guest_mem + 0x00000, blobGuest, 0x20);
+    memcpy(vm->guest_mem + 0x100000, blobGuest, 0x20);
 
     KLOG_INFO("main", "Starting virtual machine...");
     vcpu_loop(vcpu);

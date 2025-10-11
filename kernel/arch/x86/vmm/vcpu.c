@@ -19,11 +19,43 @@
  * 1) 最小ゲスト: HLT ループ
  *   - RSP を使わないので naked でもよいが、Cでは noreturn 関数で十分
  *==========================================================*/
+__attribute__((naked, noreturn))
 void blobGuest(void)
 {
-    for (;;) {
-        __asm__ __volatile__("hlt");
-    }
+    __asm__ __volatile__(
+        ".intel_syntax noprefix\n\t"
+        "1:\n\t"
+        "hlt\n\t"                    // 割り込みで再開
+        "mov rcx, 0x0000000\n\t"     // 絶対アドレスをレジスタに
+        "mov rax, [rcx]\n\t"         // [0x1000000] -> RAX
+        "mov rcx, 0x1000000\n\t"     // 絶対アドレスをレジスタに
+        "mov rbx, [rcx]\n\t"         // [0x1000000] -> RBX
+        "jmp 1b\n\t"                 // 無限ループ
+        ".att_syntax prefix\n\t"
+    );
+}
+
+
+
+static inline void dump_guest_regs(const Vcpu* vcpu)
+{
+    const GuestRegisters* g = &vcpu->guest_regs;
+
+    KLOG_ERROR("vmexit",
+        "GPRs:\n"
+        " RAX=%016llx RBX=%016llx RCX=%016llx RDX=%016llx\n"
+        " RSI=%016llx RDI=%016llx RBP=%016llx\n"
+        "  R8=%016llx  R9=%016llx R10=%016llx R11=%016llx\n"
+        " R12=%016llx R13=%016llx R14=%016llx R15=%016llx",
+        (unsigned long long)g->rax, (unsigned long long)g->rbx,
+        (unsigned long long)g->rcx, (unsigned long long)g->rdx,
+        (unsigned long long)g->rsi, (unsigned long long)g->rdi,
+        (unsigned long long)g->rbp,
+        (unsigned long long)g->r8,  (unsigned long long)g->r9,
+        (unsigned long long)g->r10, (unsigned long long)g->r11,
+        (unsigned long long)g->r12, (unsigned long long)g->r13,
+        (unsigned long long)g->r14, (unsigned long long)g->r15
+    );
 }
 
 /* VMEXIT 用の一時スタック */
@@ -131,13 +163,13 @@ static int setup_guest_state(Vcpu* vcpu)
     uint64_t cr0 = 0;
     cr0 |= (CR0_PE | CR0_NE | CR0_ET);
     cr0 &= ~CR0_PG;
-    // uint64_t cr4 = read_cr4();
-    // cr4 |=  CR4_VMXE;
-    // cr4 &= ~CR4_PAE;
+    uint64_t cr4 = read_cr4();
+    cr4 |=  CR4_VMXE;
+    cr4 &= ~CR4_PAE;
 
     if (vmcs_vmwrite(VMCS_GUEST_CR0, cr0) != 0) return -1;
     if (vmcs_vmwrite(VMCS_GUEST_CR3, read_cr3()) != 0) return -1;
-    if (vmcs_vmwrite(VMCS_GUEST_CR4, read_cr4()) != 0) return -1;
+    if (vmcs_vmwrite(VMCS_GUEST_CR4, cr4) != 0) return -1;
 
     // Base
     if (vmcs_vmwrite(VMCS_GUEST_CS_BASE, 0) != 0) return -1;
@@ -163,101 +195,29 @@ static int setup_guest_state(Vcpu* vcpu)
     (void)vmcs_vmwrite(VMCS_GUEST_IDTR_LIMIT, 0);
     (void)vmcs_vmwrite(VMCS_GUEST_GDTR_LIMIT, 0);
 
-    // static const SegmentRights CS_RIGHT = {
-    //     .accessed    = 1,              
-    //     .rw          = 1,    
-    //     .dc          = 0,        
-    //     .executable  = 1,      
-    //     .desc_type   = DESCRIPTOR_CODE_DATA,
-    //     .dpl         = 0,
-    //     .present     = 1,    
-    //     .reserved1   = 0,
-    //     .avl         = 0,
-    //     .long_mode   = 0,    
-    //     .db          = 1, 
-    //     .granularity = GRANULARITY_KBYTE,
-    //     .unusable    = 0,
-    //     .reserved2   = 0,
-    // };
-
-    // // ds_right
-    // static const SegmentRights DS_RIGHT = {
-    //     .accessed    = 1,
-    //     .rw          = 1,
-    //     .dc          = 0,
-    //     .executable  = 0, 
-    //     .desc_type   = DESCRIPTOR_CODE_DATA,
-    //     .dpl         = 0,
-    //     .present     = 1,
-    //     .reserved1   = 0,
-    //     .avl         = 0,
-    //     .long_mode   = 0,
-    //     .db          = 1,
-    //     .granularity = GRANULARITY_KBYTE,
-    //     .unusable    = 0,
-    //     .reserved2   = 0,
-    // };
-
-    // // tr_right
-    // static const SegmentRights TR_RIGHT = {
-    //     .accessed    = 1,
-    //     .rw          = 1,
-    //     .dc          = 0,
-    //     .executable  = 1,
-    //     .desc_type   = DESCRIPTOR_SYSTEM,
-    //     .dpl         = 0,
-    //     .present     = 1,
-    //     .reserved1   = 0,
-    //     .avl         = 0,
-    //     .long_mode   = 0,
-    //     .db          = 0,
-    //     .granularity = GRANULARITY_BYTE,
-    //     .unusable    = 0,
-    //     .reserved2   = 0,
-    // };
-
-    // // ldtr_right
-    // static const SegmentRights LDTR_RIGHT = {
-    //     .accessed    = 0,  
-    //     .rw          = 1,
-    //     .dc          = 0,
-    //     .executable  = 0,
-    //     .desc_type   = DESCRIPTOR_SYSTEM,
-    //     .dpl         = 0,
-    //     .present     = 1,
-    //     .reserved1   = 0,
-    //     .avl         = 0,
-    //     .long_mode   = 0,
-    //     .db          = 0,
-    //     .granularity = GRANULARITY_BYTE,
-    //     .unusable    = 0,
-    //     .reserved2   = 0,
-    // };
-
-    // CS (Code Segment)
     static const SegmentRights CS_RIGHT = {
-        .accessed    = 1,
-        .rw          = 1,
-        .dc          = 0,
-        .executable  = 1,
+        .accessed    = 1,              
+        .rw          = 1,    
+        .dc          = 0,        
+        .executable  = 1,      
         .desc_type   = DESCRIPTOR_CODE_DATA,
         .dpl         = 0,
-        .present     = 1,
+        .present     = 1,    
         .reserved1   = 0,
         .avl         = 0,
-        .long_mode   = 1,              // Zig: .long = true
-        .db          = 0,              // Zig: .db = 0
+        .long_mode   = 0,    
+        .db          = 1, 
         .granularity = GRANULARITY_KBYTE,
         .unusable    = 0,
         .reserved2   = 0,
     };
 
-    // DS (Data Segment)
+    // ds_right
     static const SegmentRights DS_RIGHT = {
         .accessed    = 1,
         .rw          = 1,
         .dc          = 0,
-        .executable  = 0,
+        .executable  = 0, 
         .desc_type   = DESCRIPTOR_CODE_DATA,
         .dpl         = 0,
         .present     = 1,
@@ -270,7 +230,7 @@ static int setup_guest_state(Vcpu* vcpu)
         .reserved2   = 0,
     };
 
-    // TR (Task Register, TSS descriptor)
+    // tr_right
     static const SegmentRights TR_RIGHT = {
         .accessed    = 1,
         .rw          = 1,
@@ -288,9 +248,9 @@ static int setup_guest_state(Vcpu* vcpu)
         .reserved2   = 0,
     };
 
-    // LDTR (Local Descriptor Table Register)
+    // ldtr_right
     static const SegmentRights LDTR_RIGHT = {
-        .accessed    = 0,              // Zig: accessed = false
+        .accessed    = 0,  
         .rw          = 1,
         .dc          = 0,
         .executable  = 0,
@@ -306,6 +266,78 @@ static int setup_guest_state(Vcpu* vcpu)
         .reserved2   = 0,
     };
 
+    // // CS (Code Segment)
+    // static const SegmentRights CS_RIGHT = {
+    //     .accessed    = 1,
+    //     .rw          = 1,
+    //     .dc          = 0,
+    //     .executable  = 1,
+    //     .desc_type   = DESCRIPTOR_CODE_DATA,
+    //     .dpl         = 0,
+    //     .present     = 1,
+    //     .reserved1   = 0,
+    //     .avl         = 0,
+    //     .long_mode   = 1,              // Zig: .long = true
+    //     .db          = 0,              // Zig: .db = 0
+    //     .granularity = GRANULARITY_KBYTE,
+    //     .unusable    = 0,
+    //     .reserved2   = 0,
+    // };
+
+    // // DS (Data Segment)
+    // static const SegmentRights DS_RIGHT = {
+    //     .accessed    = 1,
+    //     .rw          = 1,
+    //     .dc          = 0,
+    //     .executable  = 0,
+    //     .desc_type   = DESCRIPTOR_CODE_DATA,
+    //     .dpl         = 0,
+    //     .present     = 1,
+    //     .reserved1   = 0,
+    //     .avl         = 0,
+    //     .long_mode   = 0,
+    //     .db          = 1,
+    //     .granularity = GRANULARITY_KBYTE,
+    //     .unusable    = 0,
+    //     .reserved2   = 0,
+    // };
+
+    // // TR (Task Register, TSS descriptor)
+    // static const SegmentRights TR_RIGHT = {
+    //     .accessed    = 1,
+    //     .rw          = 1,
+    //     .dc          = 0,
+    //     .executable  = 1,
+    //     .desc_type   = DESCRIPTOR_SYSTEM,
+    //     .dpl         = 0,
+    //     .present     = 1,
+    //     .reserved1   = 0,
+    //     .avl         = 0,
+    //     .long_mode   = 0,
+    //     .db          = 0,
+    //     .granularity = GRANULARITY_BYTE,
+    //     .unusable    = 0,
+    //     .reserved2   = 0,
+    // };
+
+    // // LDTR (Local Descriptor Table Register)
+    // static const SegmentRights LDTR_RIGHT = {
+    //     .accessed    = 0,              // Zig: accessed = false
+    //     .rw          = 1,
+    //     .dc          = 0,
+    //     .executable  = 0,
+    //     .desc_type   = DESCRIPTOR_SYSTEM,
+    //     .dpl         = 0,
+    //     .present     = 1,
+    //     .reserved1   = 0,
+    //     .avl         = 0,
+    //     .long_mode   = 0,
+    //     .db          = 0,
+    //     .granularity = GRANULARITY_BYTE,
+    //     .unusable    = 0,
+    //     .reserved2   = 0,
+    // };
+
     (void)vmcs_vmwrite(VMCS_GUEST_CS_ACCESS_RIGHTS,   segment_rights_to_u32(CS_RIGHT));
     (void)vmcs_vmwrite(VMCS_GUEST_SS_ACCESS_RIGHTS,   segment_rights_to_u32(DS_RIGHT));
     (void)vmcs_vmwrite(VMCS_GUEST_DS_ACCESS_RIGHTS,   segment_rights_to_u32(DS_RIGHT));
@@ -316,7 +348,7 @@ static int setup_guest_state(Vcpu* vcpu)
     (void)vmcs_vmwrite(VMCS_GUEST_LDTR_ACCESS_RIGHTS, segment_rights_to_u32(LDTR_RIGHT));
 
     // Selector
-    if (vmcs_vmwrite(VMCS_GUEST_CS_SELECTOR, read_cs()) != 0) return -1;
+    if (vmcs_vmwrite(VMCS_GUEST_CS_SELECTOR, 0) != 0) return -1;
     if (vmcs_vmwrite(VMCS_GUEST_SS_SELECTOR, 0) != 0) return -1;
     if (vmcs_vmwrite(VMCS_GUEST_DS_SELECTOR, 0) != 0) return -1;
     if (vmcs_vmwrite(VMCS_GUEST_ES_SELECTOR, 0) != 0) return -1;
@@ -330,14 +362,14 @@ static int setup_guest_state(Vcpu* vcpu)
     if (vmcs_vmwrite(VMCS_GUEST_GS_BASE, 0) != 0) return -1;
 
     //MSR
-    if (vmcs_vmwrite(VMCS_GUEST_IA32_EFER,   rdmsr(IA32_EFER)) != 0) return -1;
-    //if (vmcs_vmwrite(VMCS_GUEST_IA32_EFER,   0) != 0) return -1;
+    //if (vmcs_vmwrite(VMCS_GUEST_IA32_EFER,   rdmsr(IA32_EFER)) != 0) return -1;
+    if (vmcs_vmwrite(VMCS_GUEST_IA32_EFER,   0) != 0) return -1;
 
     // General registers.
     if (vmcs_vmwrite(VMCS_GUEST_RFLAGS, 0x2u /*IF=0, reserved=1*/) != 0) return -1;
 
     // Other crucial fields.
-    if (vmcs_vmwrite(VMCS_GUEST_RIP,    (uint64_t)0x4000) != 0) return -1;
+    if (vmcs_vmwrite(VMCS_GUEST_RIP,    (uint64_t)0x00000) != 0) return -1;
     if (vmcs_vmwrite(VMCS_GUEST_VMCS_LINK_POINTER, 0xFFFFFFFFFFFFFFFFull) != 0) return -1;
     vcpu->guest_regs.rsi = 0x00010000;
 
@@ -357,7 +389,7 @@ static int setup_entry_exit_controls(Vcpu* vcpu)
         vmx_entry_ctrl_t ent = { .raw = 0 };
 
         ent.raw &= ~ENTRY_CTRL_IA32E_MODE_GUEST;
-        //ent.raw |=  ENTRY_CTRL_LOAD_EFER;
+        ent.raw |=  ENTRY_CTRL_LOAD_EFER;
 
         if (vmx_entry_commit_adjusted(ent) != 0)
             return -1;
@@ -369,7 +401,7 @@ static int setup_entry_exit_controls(Vcpu* vcpu)
 
         ext.raw |= EXIT_CTRL_HOST_ADDR_SPACE_SIZE;
         ext.raw |= EXIT_CTRL_LOAD_EFER;
-        //ext.raw |= EXIT_CTRL_SAVE_EFER ;
+        ext.raw |= EXIT_CTRL_SAVE_EFER ;
 
         if (vmx_primary_exit_commit_adjusted(ext) != 0)
             return -1;
@@ -428,19 +460,47 @@ void vmexit_dispatch(Vcpu* vcpu) {
     uint32_t basic = (ei.reason & 0xFFFFu);
     switch (basic) {
     case 12: /* HLT */
-    {
-        uint64_t rip=0;
-        vmcs_vmread(VMCS_GUEST_RIP, &rip);
-        rip += ei.inst_len;
-        vmcs_vmwrite(VMCS_GUEST_RIP, rip);
-        KLOG_DEBUG("vmexit", "HLT -> step RIP (0x%llx)", rip);
-        break;
-    }
-    default:
-        uint64_t rip=0;
-        vmcs_vmread(VMCS_GUEST_RIP, &rip);
-        KLOG_ERROR("vmexit", "Unhandled VMEXIT: reason=0x%x at RIP (0x%llx)", basic, rip);
-        for(;;) __asm__ __volatile__("hlt");
+        {
+            uint64_t rip=0;
+            vmcs_vmread(VMCS_GUEST_RIP, &rip);
+            rip += ei.inst_len;
+            vmcs_vmwrite(VMCS_GUEST_RIP, rip);
+            KLOG_DEBUG("vmexit", "HLT -> step RIP (0x%llx)", rip);
+            break;
+        }
+        default:
+        {
+            uint64_t rip=0, rsp=0, rflags=0;
+            vmcs_vmread(VMCS_GUEST_RIP,    &rip);
+            vmcs_vmread(VMCS_GUEST_RSP,    &rsp);
+            vmcs_vmread(VMCS_GUEST_RFLAGS, &rflags);
+
+            KLOG_ERROR("vmexit",
+                "Unhandled VMEXIT: reason=0x%x at RIP=0x%llx\n"
+                " RSP=%016llx RFLAGS=%016llx",
+                basic,
+                (unsigned long long)rip,
+                (unsigned long long)rsp,
+                (unsigned long long)rflags
+            );
+
+            /* 汎用レジスタを追加でダンプ */
+            dump_guest_regs(vcpu);
+
+            /* 必要なら CR0/CR3/CR4 なども併せて出力 */
+            uint64_t cr0=0, cr3=0, cr4=0;
+            vmcs_vmread(VMCS_GUEST_CR0, &cr0);
+            vmcs_vmread(VMCS_GUEST_CR3, &cr3);
+            vmcs_vmread(VMCS_GUEST_CR4, &cr4);
+            KLOG_ERROR("vmexit",
+                " CRs: CR0=%016llx CR3=%016llx CR4=%016llx",
+                (unsigned long long)cr0,
+                (unsigned long long)cr3,
+                (unsigned long long)cr4
+            );
+
+            for(;;) __asm__ __volatile__("hlt");
+        }
     }
 }
 

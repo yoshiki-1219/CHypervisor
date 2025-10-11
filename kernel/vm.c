@@ -29,8 +29,8 @@ int loadKernel(Vm *vm, GUEST_INFO* guest_info)
         return -1;
     }
     BootParams *bp = kmalloc(sizeof(BootParams), 0);
-    KLOG_INFO("vm", "0x%llx", bp);
-    KLOG_INFO("vm", "0x%llx", bzImage);
+    KLOG_INFO("vm", "BootParams 0x%llx", bp);
+    KLOG_INFO("vm", "bzImage addr 0x%llx", bzImage);
     memcpy(bp, bzImage, sizeof(BootParams));
 
     bp->e820_entries = 0;

@@ -19,7 +19,7 @@ static inline EptTable* table_from_phys(Phys paddr) {
     return (EptTable*)(uintptr_t)phys2virt(paddr);
 }
 
-/* EntryBase.newMapTable(table) 相当（Lv1 は不許可：Zig と同様の前提） */
+/* EntryBase.newMapTable(table) 相当*/
 static inline EptEntry newMapTable(EptTable* lower_tbl) {
     EptEntry e = { .u64 = 0 };
     e.f.read       = 1;
@@ -27,7 +27,7 @@ static inline EptEntry newMapTable(EptTable* lower_tbl) {
     e.f.exec_super = 1;
     e.f.exec_user  = 1;
     e.f.map_memory = 0;
-    e.f.type       = MemoryType_Uncacheable; /* Zig: テーブル参照時は UC を入れている */
+    e.f.type       = MemoryType_Uncacheable; /* テーブル参照時は UC を入れている */
     e.f.phys       = (virt2phys((uint64_t)(uintptr_t)lower_tbl)) >> page_shift_4k;
     return e;
 }
@@ -45,7 +45,7 @@ static inline EptEntry newMapPage(Phys phys) {
     return e;
 }
 
-/* ================= テーブル取得（Zig: getTable / getEntry 群） ================= */
+/* ================= テーブル取得（getTable / getEntry 群） ================= */
 
 static inline EptTable* getTable_from_phys(Phys table_phys) {
     return table_from_phys(table_phys);
@@ -66,16 +66,13 @@ static inline Lv1Entry* getLv1Entry(Phys gpa, Phys lv1tbl_paddr) {
     return (Lv1Entry*)getEntry(getTable_from_phys(lv1tbl_paddr), gpa, lv1_shift);
 }
 
-/* ================= initTable (Zig) =================
-   Zig では allocator.alloc(T, 512) 後に各フィールドを non-present へ。
-   ここでは 4KiB ゼロページを要求し、ゼロ=non-present とする。
-*/
+/* ================= initTable =================*/
 static inline EptTable* initTable() {
     EptTable* t = (EptTable*)page_alloc_4k_zero();
     return t; /* ゼロ初期化済み → 全エントリ non-present */
 }
 
-/* ================= map2m (Zig) ================= */
+/* ================= map2m ================= */
 static ept_error_t map2m(Phys gpa, Phys hpa, Lv4Entry* lv4tbl) {
     if ((gpa & page_mask_2mb) || (hpa & page_mask_2mb)) return EptErrInvalidArg;
 
@@ -83,6 +80,7 @@ static ept_error_t map2m(Phys gpa, Phys hpa, Lv4Entry* lv4tbl) {
     Lv4Entry* lv4ent = (Lv4Entry*)&lv4tbl[(gpa >> lv4_shift) & index_mask];
     if (!present(lv4ent)) {
         EptTable* lv3tbl = initTable();
+        KLOG_INFO("vmx", "EPT L3tbl addr 0x%llx", (void*)lv3tbl);
         if (!lv3tbl) return EptErrOutOfMemory;
         *lv4ent = newMapTable(lv3tbl);
     }
@@ -91,6 +89,7 @@ static ept_error_t map2m(Phys gpa, Phys hpa, Lv4Entry* lv4tbl) {
     Lv3Entry* lv3ent = getLv3Entry(gpa, address_of(lv4ent));
     if (!present(lv3ent)) {
         EptTable* lv2tbl = initTable();
+        KLOG_INFO("vmx", "EPT L2tbl addr 0x%llx", (void*)lv2tbl);
         if (!lv2tbl) return EptErrOutOfMemory;
         *lv3ent = newMapTable(lv2tbl);
     }
@@ -103,7 +102,7 @@ static ept_error_t map2m(Phys gpa, Phys hpa, Lv4Entry* lv4tbl) {
     return EptOk;
 }
 
-/* ================= translate (Zig) ================= */
+/* ================= translate ================= */
 bool translate_gpa_to_hpa(Phys guest_gpa, Lv4Entry* lv4tbl, Phys* out_hpa) {
     if (!lv4tbl || !out_hpa) return false;
 
@@ -138,11 +137,11 @@ bool translate_gpa_to_hpa(Phys guest_gpa, Lv4Entry* lv4tbl, Phys* out_hpa) {
     return true;
 }
 
-/* ================= Eptp.new / Eptp.getLv4 (Zig) ================= */
+/* ================= Eptp.new / Eptp.getLv4 ================= */
 
 Eptp eptp_new(Lv4Entry* lv4tbl) {
     Eptp p = { .u64 = 0 };
-    p.f.type      = MemoryType_WriteBack; /* Zig: .write_back */
+    p.f.type      = MemoryType_WriteBack; /* .write_back */
     p.f.level     = PageLevel_Four;       /* four = 3 */
     p.f.enable_ad = 1;                    /* 環境がサポートする前提。必要なら MSR で分岐 */
     p.f.enable_ar = 0;
@@ -155,7 +154,7 @@ Lv4Entry* eptp_getLv4(Eptp* eptp) {
     return (Lv4Entry*)(uintptr_t)phys2virt(pa);
 }
 
-/* ================= initEpt (Zig) ================= */
+/* ================= initEpt ================= */
 
 ept_error_t initEpt(Phys guest_start,
                     Phys host_start,
@@ -164,18 +163,19 @@ ept_error_t initEpt(Phys guest_start,
 {
     if (!out_eptp) return EptErrInvalidArg;
 
-    /* 2MiB アライン必須（Zig と同様） */
+    /* 2MiB アライン必須 */
     if ((guest_start & page_mask_2mb) ||
         (host_start  & page_mask_2mb) ||
         (size        & page_mask_2mb))
         return EptErrInvalidArg;
 
-    /* Zig: if (size > page_size_1gb * num_table_entries) @panic("too large") */
+    /* if (size > page_size_1gb * num_table_entries) @panic("too large") */
     const uint64_t max_bytes = (uint64_t)page_size_1g * (uint64_t)num_table_entries; /* 512 GiB */
     if (size > max_bytes) return EptErrTooLarge;
 
     /* Lv4 テーブル確保 */
     Lv4Entry* lv4tbl = (Lv4Entry*)initTable();
+    KLOG_INFO("vmx", "EPT L4tbl addr 0x%llx", (void*)lv4tbl);
     if (!lv4tbl) return EptErrOutOfMemory;
 
     /* 2MiB 単位で map2m */
@@ -199,8 +199,9 @@ int vcpu_setup_ept(Vcpu* vcpu)
     /* 1) ゲスト用の連続メモリを 2MiB アラインで 100MiB 確保 → GPA=0 恒等マップの EPT を構築 */
     const uint64_t guest_bytes = 100ULL * 1024 * 1024;
     const uint64_t need_2m     = (guest_bytes + (page_size_2m - 1)) / page_size_2m;
+    const uint64_t need_pages     = (guest_bytes + (page_size_2m - 1)) / page_size_4k;
 
-    void* guest_hva = page_alloc_pages(need_2m, page_size_2m); /* 2MiB アライン確保 */
+    void* guest_hva = page_alloc_pages(need_pages, page_size_2m); /* 2MiB アライン確保 */
     if (!guest_hva) {
         KLOG_ERROR("ept", "guest memory allocation failed");
         return -1;
@@ -227,8 +228,8 @@ int vcpu_setup_ept(Vcpu* vcpu)
     }
 
     /* 4) vCPU 構造体へ保存（のちの参照用） */
-    vcpu->guest_base = (uint64_t)(uintptr_t)guest_hva; /* HVA（Zig の guest_mem.ptr 相当） */
-    vcpu->eptp       = eptp;                           /* Zig の Vcpu.eptp と同様 */
+    vcpu->guest_base = (uint64_t)(uintptr_t)guest_hva; /* HVA*/
+    vcpu->eptp       = eptp;                           /* Vcpu.eptp と同様 */
 
     return 0;
 }
